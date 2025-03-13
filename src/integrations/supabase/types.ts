@@ -9,7 +9,183 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      apartments: {
+        Row: {
+          bathrooms: number
+          bedrooms: number
+          created_at: string | null
+          floor: number
+          id: string
+          number: string
+          rent: number
+          status: string
+          tenant_id: string | null
+        }
+        Insert: {
+          bathrooms: number
+          bedrooms: number
+          created_at?: string | null
+          floor: number
+          id?: string
+          number: string
+          rent: number
+          status?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          bathrooms?: number
+          bedrooms?: number
+          created_at?: string | null
+          floor?: number
+          id?: string
+          number?: string
+          rent?: number
+          status?: string
+          tenant_id?: string | null
+        }
+        Relationships: []
+      }
+      locations: {
+        Row: {
+          coordinates_x: number
+          coordinates_y: number
+          description: string
+          id: string
+          name: string
+          type: string
+        }
+        Insert: {
+          coordinates_x: number
+          coordinates_y: number
+          description: string
+          id?: string
+          name: string
+          type: string
+        }
+        Update: {
+          coordinates_x?: number
+          coordinates_y?: number
+          description?: string
+          id?: string
+          name?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount: number
+          apartment_id: string
+          date: string | null
+          description: string
+          id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount: number
+          apartment_id: string
+          date?: string | null
+          description: string
+          id?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          apartment_id?: string
+          date?: string | null
+          description?: string
+          id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_apartment_id_fkey"
+            columns: ["apartment_id"]
+            isOneToOne: false
+            referencedRelation: "apartments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_requests: {
+        Row: {
+          apartment_id: string
+          created_at: string | null
+          description: string
+          id: string
+          status: string
+          tenant_id: string
+          type: string
+          updated_at: string | null
+        }
+        Insert: {
+          apartment_id: string
+          created_at?: string | null
+          description: string
+          id?: string
+          status?: string
+          tenant_id: string
+          type: string
+          updated_at?: string | null
+        }
+        Update: {
+          apartment_id?: string
+          created_at?: string | null
+          description?: string
+          id?: string
+          status?: string
+          tenant_id?: string
+          type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_requests_apartment_id_fkey"
+            columns: ["apartment_id"]
+            isOneToOne: false
+            referencedRelation: "apartments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          apartment_id: string | null
+          created_at: string | null
+          email: string
+          id: string
+          name: string
+          role: string
+        }
+        Insert: {
+          apartment_id?: string | null
+          created_at?: string | null
+          email: string
+          id: string
+          name: string
+          role?: string
+        }
+        Update: {
+          apartment_id?: string | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          name?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_apartment_id_fkey"
+            columns: ["apartment_id"]
+            isOneToOne: false
+            referencedRelation: "apartments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
