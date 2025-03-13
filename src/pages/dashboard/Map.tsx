@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Location } from '@/types';
-import { Park, HomeIcon, Building as BuildingIcon, Dumbbell, Waves, ShoppingCart, UtensilsCrossed, ParkingCircle } from 'lucide-react';
+import { TreeDeciduous, HomeIcon, Building as BuildingIcon, Dumbbell, Waves, ShoppingCart, UtensilsCrossed, ParkingCircle } from 'lucide-react';
 
 export default function Map() {
   const { user } = useAuth();
@@ -19,7 +19,7 @@ export default function Map() {
       case 'temple':
         return <BuildingIcon className="h-6 w-6 text-purple-500" />;
       case 'park':
-        return <Park className="h-6 w-6 text-green-500" />;
+        return <TreeDeciduous className="h-6 w-6 text-green-500" />;
       case 'gym':
         return <Dumbbell className="h-6 w-6 text-red-500" />;
       case 'pool':
