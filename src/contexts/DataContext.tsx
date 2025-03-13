@@ -1,112 +1,9 @@
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Apartment, ServiceRequest, PaymentInfo, Location, User, UserRole, ServiceType } from '@/types';
 import { toast } from 'sonner';
-
-// Mock data for apartments
-const mockApartments: Apartment[] = [
-  { id: '1', number: '101', floor: 1, bedrooms: 2, bathrooms: 1, rent: 1200, status: 'booked', tenant_id: '2' },
-  { id: '2', number: '102', floor: 1, bedrooms: 1, bathrooms: 1, rent: 900, status: 'booked', tenant_id: '3' },
-  { id: '3', number: '103', floor: 1, bedrooms: 2, bathrooms: 1, rent: 1200, status: 'empty' },
-  { id: '4', number: '201', floor: 2, bedrooms: 3, bathrooms: 2, rent: 1800, status: 'empty' },
-  { id: '5', number: '202', floor: 2, bedrooms: 2, bathrooms: 1, rent: 1300, status: 'empty' },
-  { id: '6', number: '203', floor: 2, bedrooms: 1, bathrooms: 1, rent: 950, status: 'empty' },
-  { id: '7', number: '301', floor: 3, bedrooms: 3, bathrooms: 2, rent: 1900, status: 'empty' },
-  { id: '8', number: '302', floor: 3, bedrooms: 2, bathrooms: 2, rent: 1500, status: 'empty' },
-  { id: '9', number: '303', floor: 3, bedrooms: 2, bathrooms: 1, rent: 1250, status: 'empty' },
-  { id: '10', number: '304', floor: 3, bedrooms: 1, bathrooms: 1, rent: 1000, status: 'empty' },
-];
-
-// Mock data for service requests
-const mockServiceRequests: ServiceRequest[] = [
-  { 
-    id: '1', 
-    apartment_id: '1', 
-    tenant_id: '2', 
-    type: 'cleaning', 
-    description: 'Need apartment cleaned', 
-    status: 'pending',
-    created_at: '2023-04-12T10:30:00Z'
-  },
-  { 
-    id: '2', 
-    apartment_id: '2', 
-    tenant_id: '3', 
-    type: 'maintenance', 
-    description: 'The sink is leaking', 
-    status: 'in-progress',
-    created_at: '2023-04-10T08:15:00Z',
-    updated_at: '2023-04-11T14:20:00Z'
-  }
-];
-
-// Mock payments data
-const mockPayments: PaymentInfo[] = [
-  {
-    id: '1',
-    tenant_id: '2',
-    apartment_id: '1',
-    amount: 1200,
-    status: 'completed',
-    date: '2023-04-01T00:00:00Z',
-    description: 'April Rent'
-  },
-  {
-    id: '2',
-    tenant_id: '3',
-    apartment_id: '2',
-    amount: 900,
-    status: 'completed',
-    date: '2023-04-02T00:00:00Z',
-    description: 'April Rent'
-  }
-];
-
-// Mock locations data
-const mockLocations: Location[] = [
-  {
-    id: '1',
-    name: 'Central Park',
-    type: 'park',
-    description: 'Beautiful park with walking trails',
-    coordinates: { x: 100, y: 150 }
-  },
-  {
-    id: '2',
-    name: 'Lakeside Temple',
-    type: 'temple',
-    description: 'Peaceful temple by the lake',
-    coordinates: { x: 220, y: 100 }
-  },
-  {
-    id: '3',
-    name: 'Fitness Center',
-    type: 'gym',
-    description: '24/7 fitness center with modern equipment',
-    coordinates: { x: 180, y: 200 }
-  },
-  {
-    id: '4',
-    name: 'Community Pool',
-    type: 'pool',
-    description: 'Outdoor swimming pool',
-    coordinates: { x: 150, y: 250 }
-  },
-  {
-    id: '5',
-    name: 'Mini Mart',
-    type: 'store',
-    description: 'Convenience store for daily needs',
-    coordinates: { x: 80, y: 120 }
-  }
-];
-
-// Mock users data
-const mockUsers: User[] = [
-  { id: '1', email: 'manager@example.com', name: 'Admin Manager', role: 'manager' },
-  { id: '2', email: 'tenant1@example.com', name: 'John Doe', role: 'tenant', apartment_id: '1' },
-  { id: '3', email: 'tenant2@example.com', name: 'Jane Smith', role: 'tenant', apartment_id: '2' }
-];
+import { supabase } from '@/lib/supabase';
+import { useAuth } from './AuthContext';
 
 interface DataContextType {
   apartments: Apartment[];
@@ -120,8 +17,8 @@ interface DataContextType {
   getApartmentsByStatus: (status: 'empty' | 'booked') => Apartment[];
   
   // Service request methods
-  createServiceRequest: (request: Omit<ServiceRequest, 'id' | 'created_at'>) => void;
-  updateServiceRequest: (id: string, status: 'pending' | 'in-progress' | 'completed') => void;
+  createServiceRequest: (request: Omit<ServiceRequest, 'id' | 'created_at'>) => Promise<void>;
+  updateServiceRequest: (id: string, status: 'pending' | 'in-progress' | 'completed') => Promise<void>;
   getServiceRequestsByTenant: (tenantId: string) => ServiceRequest[];
   
   // Payment methods
@@ -129,18 +26,89 @@ interface DataContextType {
   getPaymentsByTenant: (tenantId: string) => PaymentInfo[];
   
   // User methods
-  createUser: (user: Omit<User, 'id'>) => void;
+  createUser: (user: Omit<User, 'id'>) => Promise<void>;
   getUserById: (id: string) => User | undefined;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [apartments, setApartments] = useState<Apartment[]>(mockApartments);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(mockServiceRequests);
-  const [payments, setPayments] = useState<PaymentInfo[]>(mockPayments);
-  const [locations] = useState<Location[]>(mockLocations);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const { user: authUser } = useAuth();
+  const [apartments, setApartments] = useState<Apartment[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [payments, setPayments] = useState<PaymentInfo[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
+  // Load data when authenticated
+  useEffect(() => {
+    if (authUser) {
+      fetchData();
+    }
+  }, [authUser]);
+  
+  const fetchData = async () => {
+    if (!authUser) return;
+    
+    // Fetch apartments
+    const { data: apartmentsData, error: apartmentsError } = await supabase
+      .from('apartments')
+      .select('*');
+    
+    if (!apartmentsError && apartmentsData) {
+      setApartments(apartmentsData as Apartment[]);
+    }
+    
+    // Fetch service requests (managers see all, tenants see only theirs)
+    let serviceRequestsQuery = supabase.from('service_requests').select('*');
+    if (authUser.role === 'tenant') {
+      serviceRequestsQuery = serviceRequestsQuery.eq('tenant_id', authUser.id);
+    }
+    
+    const { data: serviceRequestsData, error: serviceRequestsError } = await serviceRequestsQuery;
+    
+    if (!serviceRequestsError && serviceRequestsData) {
+      setServiceRequests(serviceRequestsData as ServiceRequest[]);
+    }
+    
+    // Fetch payments (managers see all, tenants see only theirs)
+    let paymentsQuery = supabase.from('payments').select('*');
+    if (authUser.role === 'tenant') {
+      paymentsQuery = paymentsQuery.eq('tenant_id', authUser.id);
+    }
+    
+    const { data: paymentsData, error: paymentsError } = await paymentsQuery;
+    
+    if (!paymentsError && paymentsData) {
+      setPayments(paymentsData as PaymentInfo[]);
+    }
+    
+    // Fetch locations (visible to all users)
+    const { data: locationsData, error: locationsError } = await supabase
+      .from('locations')
+      .select('*');
+    
+    if (!locationsError && locationsData) {
+      // Transform the data to match our Location interface
+      const transformedLocations = locationsData.map(loc => ({
+        ...loc,
+        coordinates: { x: loc.coordinates_x, y: loc.coordinates_y }
+      })) as unknown as Location[];
+      
+      setLocations(transformedLocations);
+    }
+    
+    // Fetch users (only for managers)
+    if (authUser.role === 'manager') {
+      const { data: usersData, error: usersError } = await supabase
+        .from('users')
+        .select('*');
+      
+      if (!usersError && usersData) {
+        setUsers(usersData as User[]);
+      }
+    }
+  };
 
   // Apartment methods
   const getApartmentById = (id: string) => {
@@ -152,26 +120,48 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Service request methods
-  const createServiceRequest = (request: Omit<ServiceRequest, 'id' | 'created_at'>) => {
-    const newRequest: ServiceRequest = {
-      ...request,
-      id: Math.random().toString(36).substring(2, 9),
-      created_at: new Date().toISOString(),
-    };
-    
-    setServiceRequests(prev => [...prev, newRequest]);
-    toast.success('Service request submitted successfully');
+  const createServiceRequest = async (request: Omit<ServiceRequest, 'id' | 'created_at'>) => {
+    try {
+      const { error } = await supabase
+        .from('service_requests')
+        .insert({
+          apartment_id: request.apartment_id,
+          tenant_id: request.tenant_id,
+          type: request.type,
+          description: request.description,
+          status: request.status,
+        });
+      
+      if (error) throw error;
+      
+      // Refresh service requests
+      fetchData();
+      toast.success('Service request submitted successfully');
+    } catch (error) {
+      console.error('Error creating service request:', error);
+      toast.error('Failed to submit service request');
+    }
   };
 
-  const updateServiceRequest = (id: string, status: 'pending' | 'in-progress' | 'completed') => {
-    setServiceRequests(prev => 
-      prev.map(req => 
-        req.id === id 
-          ? { ...req, status, updated_at: new Date().toISOString() } 
-          : req
-      )
-    );
-    toast.success(`Service request status updated to ${status}`);
+  const updateServiceRequest = async (id: string, status: 'pending' | 'in-progress' | 'completed') => {
+    try {
+      const { error } = await supabase
+        .from('service_requests')
+        .update({ 
+          status, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', id);
+      
+      if (error) throw error;
+      
+      // Refresh service requests
+      fetchData();
+      toast.success(`Service request status updated to ${status}`);
+    } catch (error) {
+      console.error('Error updating service request:', error);
+      toast.error('Failed to update service request');
+    }
   };
 
   const getServiceRequestsByTenant = (tenantId: string) => {
@@ -180,34 +170,43 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Payment methods
   const createPayment = async (payment: Omit<PaymentInfo, 'id' | 'status' | 'date'>): Promise<PaymentInfo> => {
-    // Simulate payment processing
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
+    // Simulate payment processing with 80% success rate
+    return new Promise(async (resolve, reject) => {
+      setTimeout(async () => {
         // 80% chance of success
         const isSuccessful = Math.random() < 0.8;
+        const status = isSuccessful ? 'completed' : 'failed';
         
-        if (isSuccessful) {
-          const newPayment: PaymentInfo = {
-            ...payment,
-            id: Math.random().toString(36).substring(2, 9),
-            status: 'completed',
-            date: new Date().toISOString(),
-          };
+        try {
+          const { data, error } = await supabase
+            .from('payments')
+            .insert({
+              tenant_id: payment.tenant_id,
+              apartment_id: payment.apartment_id,
+              amount: payment.amount,
+              description: payment.description,
+              status,
+              date: new Date().toISOString(),
+            })
+            .select()
+            .single();
           
-          setPayments(prev => [...prev, newPayment]);
-          toast.success('Payment processed successfully');
-          resolve(newPayment);
-        } else {
-          const failedPayment: PaymentInfo = {
-            ...payment,
-            id: Math.random().toString(36).substring(2, 9),
-            status: 'failed',
-            date: new Date().toISOString(),
-          };
+          if (error) throw error;
           
-          setPayments(prev => [...prev, failedPayment]);
-          toast.error('Payment processing failed');
-          reject(new Error('Payment failed'));
+          // Refresh payments
+          fetchData();
+          
+          if (isSuccessful) {
+            toast.success('Payment processed successfully');
+            resolve(data as PaymentInfo);
+          } else {
+            toast.error('Payment processing failed');
+            reject(new Error('Payment failed'));
+          }
+        } catch (error) {
+          console.error('Error creating payment:', error);
+          toast.error('Failed to process payment');
+          reject(error);
         }
       }, 1500); // Simulate processing time
     });
@@ -218,14 +217,37 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // User methods
-  const createUser = (user: Omit<User, 'id'>) => {
-    const newUser: User = {
-      ...user,
-      id: Math.random().toString(36).substring(2, 9),
-    };
-    
-    setUsers(prev => [...prev, newUser]);
-    toast.success('User created successfully');
+  const createUser = async (user: Omit<User, 'id'>) => {
+    try {
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: user.email,
+        password: 'temporary-password', // This should be changed by the user later
+        email_confirm: true,
+      });
+      
+      if (authError || !authData.user) throw authError || new Error('Failed to create user');
+      
+      // Add to users table
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          apartment_id: user.apartment_id,
+        });
+      
+      if (profileError) throw profileError;
+      
+      // Refresh users
+      fetchData();
+      toast.success('User created successfully');
+    } catch (error) {
+      console.error('Error creating user:', error);
+      toast.error('Failed to create user');
+    }
   };
 
   const getUserById = (id: string) => {
