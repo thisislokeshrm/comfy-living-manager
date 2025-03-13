@@ -1,6 +1,6 @@
 
 import { Location } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export const fetchLocations = async () => {
   const { data, error } = await supabase

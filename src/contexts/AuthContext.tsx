@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { User, UserRole } from '@/types';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -18,16 +17,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on load
   useEffect(() => {
     const getInitialSession = async () => {
       setIsLoading(true);
       
-      // Check for an active session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        // Get user profile data
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
@@ -48,10 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     getInitialSession();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
-        // Get user profile data
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
@@ -83,7 +77,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw signInError;
       }
       
-      // User data is fetched in the auth state change listener
       toast.success(`Welcome back!`);
     } catch (error) {
       console.error('Sign in error:', error);
@@ -97,7 +90,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string, role: UserRole) => {
     setIsLoading(true);
     try {
-      // Register the user with Supabase Auth
       const { data: { user: authUser }, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -107,7 +99,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw signUpError || new Error('Failed to create account');
       }
       
-      // Create user profile in the users table
       const { error: profileError } = await supabase
         .from('users')
         .insert({
@@ -118,12 +109,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       
       if (profileError) {
-        // Clean up the auth user if profile creation fails
         await supabase.auth.admin.deleteUser(authUser.id);
         throw profileError;
       }
       
-      // Set the user context
       const newUser: User = {
         id: authUser.id,
         email,
