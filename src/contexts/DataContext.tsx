@@ -1,9 +1,14 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Apartment, ServiceRequest, PaymentInfo, Location, User, UserRole, ServiceType } from '@/types';
-import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { Apartment, ServiceRequest, PaymentInfo, Location, User } from '@/types';
 import { useAuth } from './AuthContext';
+
+// Import services
+import { getApartmentById, getApartmentsByStatus } from '@/services/apartmentService';
+import { createServiceRequest, updateServiceRequest, getServiceRequestsByTenant } from '@/services/serviceRequestService';
+import { createPayment, getPaymentsByTenant } from '@/services/paymentService';
+import { createUser, getUserById } from '@/services/userService';
+import { fetchAllData } from '@/services/dataFetchService';
 
 interface DataContextType {
   apartments: Apartment[];
@@ -50,209 +55,49 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchData = async () => {
     if (!authUser) return;
     
-    // Fetch apartments
-    const { data: apartmentsData, error: apartmentsError } = await supabase
-      .from('apartments')
-      .select('*');
-    
-    if (!apartmentsError && apartmentsData) {
-      setApartments(apartmentsData as Apartment[]);
-    }
-    
-    // Fetch service requests (managers see all, tenants see only theirs)
-    let serviceRequestsQuery = supabase.from('service_requests').select('*');
-    if (authUser.role === 'tenant') {
-      serviceRequestsQuery = serviceRequestsQuery.eq('tenant_id', authUser.id);
-    }
-    
-    const { data: serviceRequestsData, error: serviceRequestsError } = await serviceRequestsQuery;
-    
-    if (!serviceRequestsError && serviceRequestsData) {
-      setServiceRequests(serviceRequestsData as ServiceRequest[]);
-    }
-    
-    // Fetch payments (managers see all, tenants see only theirs)
-    let paymentsQuery = supabase.from('payments').select('*');
-    if (authUser.role === 'tenant') {
-      paymentsQuery = paymentsQuery.eq('tenant_id', authUser.id);
-    }
-    
-    const { data: paymentsData, error: paymentsError } = await paymentsQuery;
-    
-    if (!paymentsError && paymentsData) {
-      setPayments(paymentsData as PaymentInfo[]);
-    }
-    
-    // Fetch locations (visible to all users)
-    const { data: locationsData, error: locationsError } = await supabase
-      .from('locations')
-      .select('*');
-    
-    if (!locationsError && locationsData) {
-      // Transform the data to match our Location interface
-      const transformedLocations = locationsData.map(loc => ({
-        ...loc,
-        coordinates: { x: loc.coordinates_x, y: loc.coordinates_y }
-      })) as unknown as Location[];
-      
-      setLocations(transformedLocations);
-    }
-    
-    // Fetch users (only for managers)
-    if (authUser.role === 'manager') {
-      const { data: usersData, error: usersError } = await supabase
-        .from('users')
-        .select('*');
-      
-      if (!usersError && usersData) {
-        setUsers(usersData as User[]);
-      }
-    }
-  };
-
-  // Apartment methods
-  const getApartmentById = (id: string) => {
-    return apartments.find(apt => apt.id === id);
-  };
-
-  const getApartmentsByStatus = (status: 'empty' | 'booked') => {
-    return apartments.filter(apt => apt.status === status);
-  };
-
-  // Service request methods
-  const createServiceRequest = async (request: Omit<ServiceRequest, 'id' | 'created_at'>) => {
     try {
-      const { error } = await supabase
-        .from('service_requests')
-        .insert({
-          apartment_id: request.apartment_id,
-          tenant_id: request.tenant_id,
-          type: request.type,
-          description: request.description,
-          status: request.status,
-        });
+      const data = await fetchAllData(authUser);
       
-      if (error) throw error;
-      
-      // Refresh service requests
-      fetchData();
-      toast.success('Service request submitted successfully');
+      setApartments(data.apartments);
+      setServiceRequests(data.serviceRequests);
+      setPayments(data.payments);
+      setLocations(data.locations);
+      setUsers(data.users);
     } catch (error) {
-      console.error('Error creating service request:', error);
-      toast.error('Failed to submit service request');
+      console.error('Error fetching data:', error);
     }
   };
 
-  const updateServiceRequest = async (id: string, status: 'pending' | 'in-progress' | 'completed') => {
-    try {
-      const { error } = await supabase
-        .from('service_requests')
-        .update({ 
-          status, 
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', id);
-      
-      if (error) throw error;
-      
-      // Refresh service requests
-      fetchData();
-      toast.success(`Service request status updated to ${status}`);
-    } catch (error) {
-      console.error('Error updating service request:', error);
-      toast.error('Failed to update service request');
-    }
+  // Create wrapper functions that call the service functions
+  const apartmentById = (id: string) => getApartmentById(apartments, id);
+  const apartmentsByStatus = (status: 'empty' | 'booked') => getApartmentsByStatus(apartments, status);
+  
+  const createServiceRequestWrapper = async (request: Omit<ServiceRequest, 'id' | 'created_at'>) => {
+    await createServiceRequest(request);
+    fetchData(); // Refresh data after creating
   };
-
-  const getServiceRequestsByTenant = (tenantId: string) => {
-    return serviceRequests.filter(req => req.tenant_id === tenantId);
+  
+  const updateServiceRequestWrapper = async (id: string, status: 'pending' | 'in-progress' | 'completed') => {
+    await updateServiceRequest(id, status);
+    fetchData(); // Refresh data after updating
   };
-
-  // Payment methods
-  const createPayment = async (payment: Omit<PaymentInfo, 'id' | 'status' | 'date'>): Promise<PaymentInfo> => {
-    // Simulate payment processing with 80% success rate
-    return new Promise(async (resolve, reject) => {
-      setTimeout(async () => {
-        // 80% chance of success
-        const isSuccessful = Math.random() < 0.8;
-        const status = isSuccessful ? 'completed' : 'failed';
-        
-        try {
-          const { data, error } = await supabase
-            .from('payments')
-            .insert({
-              tenant_id: payment.tenant_id,
-              apartment_id: payment.apartment_id,
-              amount: payment.amount,
-              description: payment.description,
-              status,
-              date: new Date().toISOString(),
-            })
-            .select()
-            .single();
-          
-          if (error) throw error;
-          
-          // Refresh payments
-          fetchData();
-          
-          if (isSuccessful) {
-            toast.success('Payment processed successfully');
-            resolve(data as PaymentInfo);
-          } else {
-            toast.error('Payment processing failed');
-            reject(new Error('Payment failed'));
-          }
-        } catch (error) {
-          console.error('Error creating payment:', error);
-          toast.error('Failed to process payment');
-          reject(error);
-        }
-      }, 1500); // Simulate processing time
-    });
+  
+  const serviceRequestsByTenant = (tenantId: string) => getServiceRequestsByTenant(serviceRequests, tenantId);
+  
+  const createPaymentWrapper = async (payment: Omit<PaymentInfo, 'id' | 'status' | 'date'>) => {
+    const result = await createPayment(payment);
+    fetchData(); // Refresh data after creating
+    return result;
   };
-
-  const getPaymentsByTenant = (tenantId: string) => {
-    return payments.filter(payment => payment.tenant_id === tenantId);
+  
+  const paymentsByTenant = (tenantId: string) => getPaymentsByTenant(payments, tenantId);
+  
+  const createUserWrapper = async (user: Omit<User, 'id'>) => {
+    await createUser(user);
+    fetchData(); // Refresh data after creating
   };
-
-  // User methods
-  const createUser = async (user: Omit<User, 'id'>) => {
-    try {
-      // Create auth user
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: user.email,
-        password: 'temporary-password', // This should be changed by the user later
-        email_confirm: true,
-      });
-      
-      if (authError || !authData.user) throw authError || new Error('Failed to create user');
-      
-      // Add to users table
-      const { error: profileError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          apartment_id: user.apartment_id,
-        });
-      
-      if (profileError) throw profileError;
-      
-      // Refresh users
-      fetchData();
-      toast.success('User created successfully');
-    } catch (error) {
-      console.error('Error creating user:', error);
-      toast.error('Failed to create user');
-    }
-  };
-
-  const getUserById = (id: string) => {
-    return users.find(user => user.id === id);
-  };
+  
+  const userById = (id: string) => getUserById(users, id);
 
   return (
     <DataContext.Provider 
@@ -262,15 +107,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         payments,
         locations,
         users,
-        getApartmentById,
-        getApartmentsByStatus,
-        createServiceRequest,
-        updateServiceRequest,
-        getServiceRequestsByTenant,
-        createPayment,
-        getPaymentsByTenant,
-        createUser,
-        getUserById,
+        getApartmentById: apartmentById,
+        getApartmentsByStatus: apartmentsByStatus,
+        createServiceRequest: createServiceRequestWrapper,
+        updateServiceRequest: updateServiceRequestWrapper,
+        getServiceRequestsByTenant: serviceRequestsByTenant,
+        createPayment: createPaymentWrapper,
+        getPaymentsByTenant: paymentsByTenant,
+        createUser: createUserWrapper,
+        getUserById: userById,
       }}
     >
       {children}
